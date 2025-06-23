@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -30,8 +31,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  // ⚠️ IMPORTANTE: Cambiar esta URL por tu URL real de Render después del despliegue
-  const API_BASE = "https://tu-api-aqui.onrender.com"
+  // ✅ URL CORRECTA DE TU API
+  const API_BASE = "https://back-uqvd.onrender.com"
 
   useEffect(() => {
     checkApiConnection()
