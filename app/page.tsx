@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -8,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StudentManager } from "@/components/student-manager"
 import { AttendanceMarker } from "@/components/attendance-marker"
 import { AttendanceReports } from "@/components/attendance-reports"
-import { Users, UserCheck, BarChart3, RefreshCw } from "lucide-react"
+import { Users, UserCheck, BarChart3, RefreshCw, AlertCircle, ExternalLink } from "lucide-react"
 
 interface Student {
   matricula: string
@@ -30,6 +29,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [connectionError, setConnectionError] = useState("")
 
   // ✅ URL CORRECTA DE TU API
   const API_BASE = "https://back-uqvd.onrender.com"
@@ -40,15 +40,41 @@ export default function Dashboard() {
 
   const checkApiConnection = async () => {
     try {
-      console.log("Conectando con:", API_BASE)
-      const response = await fetch(`${API_BASE}/health`)
+      setConnectionError("")
+      console.log("🔄 Intentando conectar con:", API_BASE)
+
+      // Agregar headers específicos para CORS
+      const response = await fetch(`${API_BASE}/health`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        mode: "cors", // Importante para CORS
+      })
+
+      console.log("📡 Response status:", response.status)
+      console.log("📡 Response headers:", response.headers)
+
       if (response.ok) {
+        const data = await response.json()
+        console.log("✅ API Response:", data)
         setApiConnected(true)
         await fetchData()
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-    } catch (error) {
-      console.error("Error connecting to API:", error)
+    } catch (error: any) {
+      console.error("❌ Error connecting to API:", error)
       setApiConnected(false)
+
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        setConnectionError(
+          "Error de CORS o red. La API puede estar funcionando pero no permite conexiones desde este dominio.",
+        )
+      } else {
+        setConnectionError(`Error: ${error.message}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -60,7 +86,14 @@ export default function Dashboard() {
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch(`${API_BASE}/students`)
+      const response = await fetch(`${API_BASE}/students`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        mode: "cors",
+      })
       if (response.ok) {
         const data = await response.json()
         setStudents(data)
@@ -72,7 +105,14 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/reports/stats/today`)
+      const response = await fetch(`${API_BASE}/reports/stats/today`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        mode: "cors",
+      })
       if (response.ok) {
         const data = await response.json()
         setStats(data)
@@ -84,7 +124,7 @@ export default function Dashboard() {
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchData()
+    await checkApiConnection()
     setRefreshing(false)
   }
 
@@ -95,6 +135,7 @@ export default function Dashboard() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-lg font-medium">Conectando con la API...</p>
           <p className="text-sm text-gray-500 mt-2">API: {API_BASE}</p>
+          <p className="text-xs text-gray-400 mt-1">Verificando CORS y conectividad...</p>
         </div>
       </div>
     )
@@ -103,35 +144,57 @@ export default function Dashboard() {
   if (!apiConnected) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-lg">
+        <Card className="w-full max-w-2xl">
           <CardHeader className="text-center">
             <CardTitle className="text-red-600 flex items-center justify-center space-x-2">
-              <span>❌</span>
+              <AlertCircle className="w-6 h-6" />
               <span>API No Conectada</span>
             </CardTitle>
-            <CardDescription>No se puede establecer conexión con el servidor</CardDescription>
+            <CardDescription>Problema de CORS o conectividad</CardDescription>
           </CardHeader>
-          <CardContent className="text-center space-y-4">
+          <CardContent className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600 mb-2">URL de la API:</p>
               <code className="bg-gray-100 px-3 py-1 rounded text-sm break-all">{API_BASE}</code>
             </div>
 
-            <div className="text-left space-y-2 text-sm text-gray-600">
-              <p>
-                <strong>Pasos para solucionar:</strong>
+            {connectionError && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <p className="text-sm text-red-700">{connectionError}</p>
+              </div>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+              <p className="text-sm text-blue-700 mb-2">
+                <strong>Diagnóstico:</strong>
               </p>
-              <ol className="list-decimal list-inside space-y-1 ml-4">
-                <li>Verifica que la API esté desplegada en Render</li>
-                <li>Actualiza la URL en el código (línea 31 de page.tsx)</li>
-                <li>Asegúrate de que la API esté funcionando</li>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-blue-600">
+                <li>
+                  Abre{" "}
+                  <a
+                    href={`${API_BASE}/health`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline inline-flex items-center"
+                  >
+                    {API_BASE}/health <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
+                </li>
+                <li>Si ves JSON con "status": "healthy", la API funciona</li>
+                <li>El problema es CORS - necesitamos actualizar la configuración</li>
               </ol>
             </div>
 
-            <Button onClick={checkApiConnection} className="w-full">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Reintentar Conexión
-            </Button>
+            <div className="flex space-x-2">
+              <Button onClick={handleRefresh} className="flex-1" disabled={refreshing}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Reintentando..." : "Reintentar"}
+              </Button>
+              <Button variant="outline" onClick={() => window.open(`${API_BASE}/health`, "_blank")} className="flex-1">
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Probar API
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -147,7 +210,7 @@ export default function Dashboard() {
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">📚 Sistema de Pase de Lista</h1>
               <p className="text-gray-600">Gestiona estudiantes y controla asistencia de manera eficiente</p>
-              <p className="text-xs text-gray-500 mt-1">✅ API Conectada: {API_BASE}</p>
+              <p className="text-xs text-green-600 mt-1">✅ API Conectada: {API_BASE}</p>
             </div>
             <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
